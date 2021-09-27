@@ -1,0 +1,7 @@
+# Project exclude paths
+/.gradle/
+/microboot-common/build/
+/microboot-common/build/classes/java/main/
+/microboot-web/build/
+/microboot-web/build/classes/java/main/
+/microboot-web/build/classes/java/test/

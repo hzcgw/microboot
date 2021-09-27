@@ -1,0 +1,133 @@
+buildscript {
+    apply from: 'dependencies.gradle'
+    repositories {
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        mavenCentral()
+    }
+    dependencies {
+        classpath libraries.'spring-boot-gradle-plugin'
+    }
+}
+
+apply from: 'dependencies.gradle'
+group project_group
+version project_version
+
+def env = System.getProperty("env") ?: 'dev'
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'org.springframework.boot'
+    apply plugin: 'io.spring.dependency-management'
+
+    sourceCompatibility = project_jdk
+    targetCompatibility = project_jdk
+
+    repositories {
+        def ALIYUN_REPOSITORY_URL = 'http://maven.aliyun.com/nexus/content/groups/public'
+        def ALIYUN_JCENTER_URL = 'http://maven.aliyun.com/nexus/content/repositories/jecnter'
+        all {
+            ArtifactRepository repo ->
+                if (repo instanceof MavenArtifactRepository) {
+                    def url = repo.url.toString()
+                    if (url.startsWith('https://repo1.maven.org/maven2')) {
+                        project.logger.lifecycle "Repository ${repo.url} replaced by $ALIYUN_REPOSITORY_URL."
+                        remove repo
+                    }
+                    if (url.startsWith('https://jcenter.bintray.com/')) {
+                        project.logger.lifecycle "Repository ${repo.url} replaced by $ALIYUN_JCENTER_URL."
+                        remove repo
+                    }
+                }
+        }
+        maven { url ALIYUN_REPOSITORY_URL }
+        maven { url ALIYUN_JCENTER_URL }
+        mavenCentral()
+    }
+    dependencies {  // 公共依赖库管理
+        compile('org.springframework.boot:spring-boot-devtools') // 允许进行项目的热部署
+        // 以下为测试环境的相关依赖配置
+        testImplementation('org.springframework.boot:spring-boot-starter-test') { // 此时默认会引入JUnit4组件
+            exclude group: 'junit', module: 'junit' // 移除旧版本的测试工具
+        }
+        testImplementation(enforcedPlatform(libraries.'junit-bom')) // 将当前的项目强制性的绑定为JUnit5运行
+        testImplementation(libraries.'junit-jupiter-api')
+        testImplementation(libraries.'junit-vintage-engine')
+        testImplementation(libraries.'junit-jupiter-engine')
+        testImplementation(libraries.'junit-platform-launcher')
+        // 以下为Lombok插件的相关依赖配置
+        compileOnly(libraries.'lombok') // 在编译的时候生效
+        annotationProcessor(libraries.'lombok') // 在注解的时候让其生效
+    }
+    sourceSets {
+        main {
+            java { srcDirs = ['src/main/java'] }
+            resources { srcDirs = ['src/main/resources', "src/main/profiles/$env"] }
+        }
+        test {
+            java { srcDirs = ['src/test/java'] }
+            resources { srcDirs = ['src/test/resources'] }
+        }
+    }
+    test {
+        useJUnitPlatform()
+    }
+    task sourceJar(type: Jar, dependsOn: classes) {
+        archiveClassifier = 'sources'
+        from sourceSets.main.allSource
+    }
+    task javadocTask(type: Javadoc) {
+        options.encoding = 'UTF-8'
+        source = sourceSets.main.allJava
+    }
+    task javadocJar(type: Jar, dependsOn: javadocTask) {
+        archiveClassifier = 'javadoc'
+        from javadocTask.destinationDir
+    }
+    tasks.withType(Javadoc) {
+        options.encoding = 'UTF-8'
+    }
+    tasks.withType(JavaCompile) {
+        options.encoding = 'UTF-8'
+    }
+    artifacts {
+        archives sourceJar
+        archives javadocJar
+    }
+    gradle.taskGraph.whenReady {
+        tasks.each {
+            if (it.name.contains('test')) {
+                it.enabled = true
+            }
+        }
+    }
+    [compileJava, compileTestJava, javadoc]*.options*.encoding = 'UTF-8'
+}
+
+project('microboot-web') {
+    dependencies {
+        compile(project(':microboot-common'))
+        compile(libraries."fastjson")
+        compile(libraries."jackson-dataformat-xml")
+        compile(libraries."jackson-databind")
+        compile(libraries."jackson-annotations")
+        compile(libraries."itextpdf")
+   }
+}
+
+project('microboot-common') {
+    dependencies {
+        compile('org.springframework.boot:spring-boot-starter-web')
+    }
+}
+/*
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+ */
